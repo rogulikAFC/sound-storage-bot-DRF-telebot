@@ -3,6 +3,8 @@ from uuid import uuid4
 from django.db import models, connection
 from django.dispatch import receiver
 
+from author.models import Author
+
 
 class Album(models.Model):
     id = models.UUIDField(
@@ -17,43 +19,20 @@ class Album(models.Model):
     sounds = models.ManyToManyField(
         to='Sound'
     )
-    authors = models.ManyToManyField(
-        to='author.Author', blank=True
-    )
     
     def __str__(self) -> str:
         return self.title
     
-    def save(self, *args, **kwargs):
-        super(Album, self).save(*args,  **kwargs)
-        
-        sounds = self.sounds.all()
-        authors = [author for sound in sounds for author in sound.authors.all()]
-
-        self.authors.clear()
-        for author in authors:
-            self.authors.add(author)
-
-        print(self.authors.all())
+    def get_authors(self) -> list:
+        return Author.objects.filter(albums__in=[self])
 
 
-# @receiver(models.signals.pre_save, sender=Album)
-# def handle_album_save(sender: Album, instance: Album, **kwargs):
-#     if instance.authors.all():
-#         print(f'objects {instance.authors.all()}')
-#         return
+@receiver(models.signals.pre_save, sender=Album)
+def handle_album_save(sender: Album, instance: Album, **kwargs):
+    authors = [author for sound in instance.sounds.all() for author in sound.authors.all()]
 
-#     sounds = instance.sounds.all()
-#     authors = [author for sound in sounds for author in sound.authors.all()]
-#     # print(authors)
-#     # print(instance.id)
-
-#     instance.authors.set(authors)
-#     # instance.save()
-
-#     # print(connection.queries[-1])
-
-#     print(instance.authors.all())
+    for author in authors:
+        author.albums.add(instance)
 
 @receiver(models.signals.pre_delete, sender=Album)
 def handle_album_delete(sender: Album, instance: Album, **kwargs):

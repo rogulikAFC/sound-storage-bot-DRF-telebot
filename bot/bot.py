@@ -41,7 +41,7 @@ def handle_start(message):
         reply_markup=keyboard
     )
 
-@bot.callback_query_handler(func=lambda cb: 'about')
+@bot.callback_query_handler(func=lambda cb: 'about' in cb.data)
 def handle_about(query):
     bot.send_message(
         query.message.chat.id,

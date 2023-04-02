@@ -17,10 +17,9 @@ class SoundAdmin(admin.ModelAdmin):
 
 @admin.register(Album)
 class AlbumAdmin(admin.ModelAdmin):
-    list_display = ['id', 'title']
+    list_display = ['id', 'title', 'get_authors']
+
+    def get_authors(self, obj: Album) -> str:
+        return ', '.join(author.title for author in obj.get_authors())
     
-    # def get_authors(self, obj: Album) -> str:
-    #     authors = obj.authors.all()
-    #     return ', '.join(author.title for author in authors)
-    
-    # get_authors.short_description = 'authors'
+    get_authors.short_description = 'authors'

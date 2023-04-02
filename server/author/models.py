@@ -18,15 +18,18 @@ class Author(models.Model):
         to='sound.Album', blank=True
     )
 
+    def get_sounds(self):   
+        from sound.models import Sound  # avoid circular import
+
+        return Sound.objects.filter(authors__in=[self])
+
     def __str__(self) -> str:
         return self.title
 
 
 @receiver(models.signals.pre_delete, sender=Author)
 def handle_author_delete(sender: Author, instance: Author, *args, **kwargs):
-    from sound.models import Sound  # avoid circular import
-
-    sounds = Sound.objects.filter(authors__in=[instance])
+    sounds = instance.get_sounds()
 
     single_sounds = sounds.annotate(
         authors_count=models.Count('authors')

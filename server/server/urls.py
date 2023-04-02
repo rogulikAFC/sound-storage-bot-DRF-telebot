@@ -22,7 +22,8 @@ from django.conf import settings
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/sound/', include('sound.urls'))
+    path('api/sound/', include('sound.urls')),
+    path('api/author/', include('author.urls'))
 ]
 
 if settings.DEBUG:

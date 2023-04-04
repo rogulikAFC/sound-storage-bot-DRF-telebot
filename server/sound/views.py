@@ -11,6 +11,8 @@ from author.models import Author
 class SoundListCreateView(generics.ListCreateAPIView):
     serializer_class = SoundSerializer
     queryset = Sound.objects.all()
+    filterset_fields = ['id']
+    search_fields = ['title']
 
     def perform_create(self, serializer: SoundSerializer, *args, **kwargs):
         data = dict(self.request.data)
@@ -31,6 +33,8 @@ class SoundListCreateView(generics.ListCreateAPIView):
 class AlbumListCreateView(generics.ListCreateAPIView):
     serializer_class = AlbumSerializer
     queryset = Album.objects.all()
+    filterset_fields = ['id']
+    search_fields = ['title']
 
     def perform_create(self, serializer: AlbumSerializer, *args, **kwargs):
         data = dict(self.request.data)

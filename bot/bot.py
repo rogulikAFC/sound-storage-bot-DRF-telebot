@@ -6,11 +6,12 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton,\
 ReplyKeyboardMarkup, KeyboardButton
 
 from bot_config import CONFIG
-from utils import get_sounds, get_random_sounds, get_authors_by_title
-from classes import Sound
+from utils import *
+from classes import Sound, Album
 
 
 sound = None
+album = None
 
 bot = telebot.TeleBot(CONFIG.get('TOKEN'))
 
@@ -74,18 +75,18 @@ def handle_search_sound_cb(query):
     bot.register_next_step_handler(message, process_sound_title_step)
 
 def process_sound_title_step(message):
-    keyboard = InlineKeyboardMarkup()
+    # keyboard = InlineKeyboardMarkup()
 
-    keyboard.add(
-        InlineKeyboardButton(
-            'It isn\'t. Show me next 10, please', callback_data='send_sounds_list'
-        )
-    )
-    keyboard.add(
-        InlineKeyboardButton('Back', callback_data='back')    # Not working
-    )
+    # keyboard.add(
+    #     InlineKeyboardButton(
+    #         'It isn\'t. Show me next 10, please', callback/start_data=f'send_sounds_list_{search_page + 1}'
+    #     )
+    # )
+    # keyboard.add(
+    #     InlineKeyboardButton('Back', callback_data='back')    # Not working
+    # )
 
-    for sound in get_sounds():  # pagination and filters needed
+    for sound in Sound.search_sounds(message.text, ):  # pagination and filters needed
         id = sound.get('id')
         title = sound.get('title')
         authors = ', '.join(author.get('title') for author in sound.get('authors'))
@@ -103,8 +104,32 @@ def process_sound_title_step(message):
 
     bot.send_message(
         message.chat.id,
-        'Is there your sound?',
-        reply_markup=keyboard
+        'That\'s all',
+    )
+
+
+@bot.callback_query_handler(func=lambda cb: 'sound_detail_' in cb.data)
+def sound_detail(query):
+    id = query.data.split('_')[-1]
+    sound = Sound.get_sound_info(id)
+
+    cover_url = sound.get('cover_url')
+    cover = get_cover(cover_url)
+
+    audio_url = sound.get('sound_url')
+    audio = Sound.get_sound_file(audio_url)
+
+    authors = ', '.join(author.get('title') for author in sound.get('authors'))
+
+    bot.send_photo(
+        query.message.chat.id,
+        ('new_image.jpg', cover),
+        f'{sound.get("title")} - {authors}'
+    )
+    bot.send_audio(
+        query.message.chat.id,
+        audio,
+        title=f'{sound.get("title")} - {authors}'
     )
 
 
@@ -189,7 +214,6 @@ def process_upload_sound_cover_step(message):
     cover_image_info = None
 
     try:
-        print(message)
         cover_image_info = bot.get_file(message.photo[0].file_id)
 
     except:
@@ -250,7 +274,7 @@ def process_upload_sound_file_and_authors_step(message):
         'Ok, now select authors'
     )
 
-    for author in get_authors_by_title(message.text):  # filters needed
+    for author in get_authors_by_title(message.text):
         id = author.get('id')
         title = author.get('title')
 
@@ -283,7 +307,6 @@ def process_upload_sound_file_and_authors_step(message):
 @bot.callback_query_handler(func=lambda cb: cb.data.startswith('select_sound_author_'))
 def add_author_to_sound(query):
     id = query.data.split('_')[-1]
-    print(id)
 
     try:
         sound.authors.append(id)
@@ -314,6 +337,199 @@ def upload_sound_to_db(query):
         )
 
     sound = None
+
+
+@bot.callback_query_handler(func=lambda cb: 'search_album' == cb.data)
+def search_album(query):
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(
+        InlineKeyboardButton('Back', callback_data='back')    # Not working
+    )
+
+    message = bot.send_message(
+        query.message.chat.id,
+        'Say me name of album',
+        reply_markup=keyboard
+    )
+
+    bot.register_next_step_handler(message, process_sound_title_step)
+
+def process_sound_title_step(message):
+    for album in Album.search_albums(message.text):
+        id = album.get('id')
+        title = album.get('title')
+        authors = ', '.join(author.get('title') for author in album.get('authors'))
+
+        album_keyboard = InlineKeyboardMarkup()
+        album_keyboard.add(
+            InlineKeyboardButton('That\'s it!', callback_data=f'album_detail_{id}')
+        )
+
+        bot.send_message(
+            message.chat.id,
+            f'{title} - {authors}',
+            reply_markup=album_keyboard
+        )
+
+    bot.send_message(
+        message.chat.id,
+        'That\'s all',
+    )
+
+
+@bot.callback_query_handler(func=lambda cb: 'album_detail_' in cb.data)
+def album_detail(query):
+    id = query.data.split('_')[-1]
+    album_info = Album.get_album_info(id)
+
+    authors = ', '.join(author.get('title') for author in album_info.get('authors'))
+    title = album_info.get('title')
+
+    cover = get_cover(album_info.get('cover_url'))
+
+    bot.send_photo(
+        query.message.chat.id,
+        ('new_image.jpg', cover),
+        f'{title} - {authors}'
+    )
+
+    sounds = album_info.get('sounds')
+
+    for sound in sounds:
+        id = sound.get('id')
+        title = sound.get('title')
+        authors = ', '.join(author.get('title') for author in sound.get('authors'))
+
+        sound_keyboard = InlineKeyboardMarkup()
+        sound_keyboard.add(
+            InlineKeyboardButton('Listen to it', callback_data=f'sound_detail_{id}')
+        )
+
+        bot.send_message(
+            query.message.chat.id,
+            f'{title} - {authors}',
+            reply_markup=sound_keyboard
+        )
+
+
+@bot.callback_query_handler(func=lambda cb: 'group_album' == cb.data)
+def group_album(query):
+    msg = bot.send_message(
+        query.message.chat.id,
+        'Write album title'
+    )
+    
+    bot.register_next_step_handler(msg, group_album_title_step)
+
+def group_album_title_step(message):
+    global album
+    album = Album(message.text)
+    msg = bot.send_message(
+        message.chat.id,
+        'Upload album cover'
+    )
+
+    bot.register_next_step_handler(msg, group_album_cover_step)
+
+def group_album_cover_step(message):
+    cover_image_info = None
+
+    try:
+        cover_image_info = bot.get_file(message.photo[0].file_id)
+
+    except:
+        msg = bot.send_message(
+            message.chat.id,
+            'You have uploaded not png or jpg file, upload png or jpg file'
+        )
+        bot.register_next_step_handler(msg, group_album_cover_step)
+
+    extension_pattern = r'\.[^.]+$'
+
+    extension = re.search(
+        extension_pattern, cover_image_info.file_path
+    ).group(0)
+
+    file = bot.download_file(cover_image_info.file_path)
+
+    with open(f'new_image{extension}', 'wb') as new_file:
+        new_file.write(file)
+
+    file = open(f'new_image{extension}', 'rb')
+    album.cover = file.read()
+
+    bot.send_message(
+        message.chat.id,
+        'Select sounds'
+    )
+
+    for sound in get_sounds():
+        id = sound.get('id')
+        title = sound.get('title')
+        authors = ', '.join(author.get('title') for author in sound.get('authors'))
+
+        sound_keyboard = InlineKeyboardMarkup()
+        sound_keyboard.add(
+            InlineKeyboardButton('That\'s it!', callback_data=f'select_album_sound_{id}')
+        )
+
+        bot.send_message(
+            message.chat.id,
+            f'{title} - {authors}',
+            reply_markup=sound_keyboard
+        )
+
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(
+        InlineKeyboardButton('Yes, upload album to database', callback_data='upload_album_to_db')
+    )
+    keyboard.add(
+        InlineKeyboardButton('No, exit', callback_data='group_album')
+    )
+
+
+    bot.send_message(
+        message.chat.id,
+        'Upload album to database?',
+        reply_markup=keyboard
+    )
+
+
+@bot.callback_query_handler(func=lambda cb: 'select_album_sound_' in cb.data)
+def select_album_sound(query):
+    global album
+
+    id = query.data.split('_')[-1]
+
+    try:
+        album.sounds.append(id)
+
+    except:
+        bot.send_message(
+            query.message.chat.id,
+            'Ooops... Somthing went wrong. This error may occur, when you already selected all sounds'
+        )
+
+    print(album.title, album.sounds)
+
+
+@bot.callback_query_handler(func=lambda cb: 'upload_album_to_db' == cb.data)
+def upload_album_to_db(query):
+    global album
+
+    if album.upload_to_database():
+        bot.send_message(
+            query.message.chat.id,
+            'Uploaded!'
+        )
+
+    else:
+        bot.send_message(
+            query.message.chat.id,
+            'Something went wrong, album not uploaded'
+        )
+
+    album = None
 
 
 bot.infinity_polling()

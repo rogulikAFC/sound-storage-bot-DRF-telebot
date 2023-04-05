@@ -48,7 +48,7 @@ def handle_start(message):
 
     bot.send_message(
         message.chat.id,
-        f'Hello, {message.from_user.first_name}!',
+        f'Welcome',
         reply_markup=keyboard
     )
 
@@ -662,6 +662,11 @@ def author_detail(query):
             f'{title} - {authors}',
             reply_markup=album_keyboard
         )
+
+
+@bot.callback_query_handler(func=lambda cb: 'back' == cb.data)
+def back(query):
+    handle_start(query.message)
 
 
 bot.infinity_polling()

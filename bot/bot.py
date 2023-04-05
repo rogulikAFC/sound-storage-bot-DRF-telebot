@@ -7,11 +7,12 @@ ReplyKeyboardMarkup, KeyboardButton
 
 from bot_config import CONFIG
 from utils import *
-from classes import Sound, Album
+from classes import Sound, Album, Author
 
 
 sound = None
 album = None
+author = None
 
 bot = telebot.TeleBot(CONFIG.get('TOKEN'))
 
@@ -352,9 +353,9 @@ def search_album(query):
         reply_markup=keyboard
     )
 
-    bot.register_next_step_handler(message, process_sound_title_step)
+    bot.register_next_step_handler(message, process_album_title_step)
 
-def process_sound_title_step(message):
+def process_album_title_step(message):
     for album in Album.search_albums(message.text):
         id = album.get('id')
         title = album.get('title')
@@ -402,7 +403,7 @@ def album_detail(query):
 
         sound_keyboard = InlineKeyboardMarkup()
         sound_keyboard.add(
-            InlineKeyboardButton('Listen to it', callback_data=f'sound_detail_{id}')
+            InlineKeyboardButton('Listen it', callback_data=f'sound_detail_{id}')
         )
 
         bot.send_message(
@@ -530,6 +531,137 @@ def upload_album_to_db(query):
         )
 
     album = None
+
+
+@bot.callback_query_handler(func=lambda cb: 'create_author' == cb.data)
+def upload_author(query):
+    msg = bot.send_message(
+        query.message.chat.id,
+        'Write author title'
+    )
+    
+    bot.register_next_step_handler(msg, upload_author_title)
+
+def upload_author_title(message):
+    global author
+    author = Author(message.text)
+    msg = bot.send_message(
+        message.chat.id,
+        'Upload author description'
+    )
+
+    bot.register_next_step_handler(msg, upload_author_description)
+
+def upload_author_description(message):
+    global author
+    author.description = message.text
+    
+    if author.upload_to_database():
+        bot.send_message(
+            message.chat.id,
+            'Uploaded!'
+        )
+
+    else:
+        bot.send_message(
+            message.chat.id,
+            'Something went wrong, author not created'
+        )
+
+
+@bot.callback_query_handler(func=lambda cb: 'search_author' == cb.data)
+def search_author(query):
+    msg = bot.send_message(
+        query.message.chat.id,
+        'Write author title',
+    )
+
+    bot.register_next_step_handler(msg, search_author_title_step)
+
+def search_author_title_step(message):
+    for author in Author.search_authors(message.text):
+        id = author.get('id')
+        title = author.get('title')
+
+        author_keyboard = InlineKeyboardMarkup()
+        author_keyboard.add(
+            InlineKeyboardButton(
+                'View this author',
+                callback_data=f'author_detail_{id}'
+            )
+        )
+
+        bot.send_message(
+            message.chat.id,
+            title,
+            reply_markup=author_keyboard
+        )
+
+    bot.send_message(
+        message.chat.id,
+        'That\'s all'
+    )
+
+
+@bot.callback_query_handler(func=lambda cb: 'author_detail_' in cb.data)
+def author_detail(query):
+    author_id = query.data.split('_')[-1]
+    author = Author.get_author_info(author_id)
+
+    bot.send_message(
+        query.message.chat.id,
+        f'''
+        <b> {author.get("title")} </b> \n\n{author.get("description")}
+        ''',
+        parse_mode='HTML'
+    )
+
+    bot.send_message(
+        query.message.chat.id,
+        '<b> Sounds: </b>',
+        parse_mode='HTML'
+    )
+
+    for sound in author.get('sounds'):
+        id = sound.get('id')
+        title = sound.get('title')
+
+        sound_keyboard = InlineKeyboardMarkup()
+        sound_keyboard.add(
+            InlineKeyboardButton(
+                'Listen it', callback_data=f'sound_detail_{id}'
+            )
+        )
+
+        bot.send_message(
+            query.message.chat.id,
+            f'{title}',
+            reply_markup=sound_keyboard
+        )
+
+    bot.send_message(
+        query.message.chat.id,
+        '<b> Albums: </b>',
+        parse_mode='HTML'
+    )
+
+    for album in author.get('albums'):
+        id = album.get('id')
+        title = album.get('title')
+        authors = ', '.join(author.get('title') for author in album.get('authors'))
+
+        album_keyboard = InlineKeyboardMarkup()
+        album_keyboard.add(
+            InlineKeyboardButton(
+                'View', callback_data=f'album_detail_{id}'
+            )
+        )
+
+        bot.send_message(
+            query.message.chat.id,
+            f'{title} - {authors}',
+            reply_markup=album_keyboard
+        )
 
 
 bot.infinity_polling()

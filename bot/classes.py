@@ -48,7 +48,7 @@ class Sound:
             return hander.read()
 
     @classmethod
-    def search_sounds(cls, search: str, page: int = 1) -> list[dict]:
+    def search_sounds(cls, search: str) -> list[dict]:
         response = requests.get(
             f'http://127.0.0.1:8000/api/sound/sounds/?search={search}'
         )
@@ -92,6 +92,40 @@ class Album:
     def get_album_info(cls, id: str) -> dict:
         response = requests.get(
             f'http://127.0.0.1:8000/api/sound/albums/?id={id}'
+        )
+
+        return response.json()[0]
+    
+
+class Author:
+    def __init__(self, title):
+        self.title = title
+        self.description = None
+
+    def upload_to_database(self) -> bool:
+        response = requests.post(
+            'http://127.0.0.1:8000/api/author/',
+            
+            data={
+                'title': self.title,
+                'description': self.description
+            }
+        )
+
+        return response.json()
+    
+    @classmethod
+    def search_authors(cls, search: str) -> list[dict]:
+        response = requests.get(
+            f'http://127.0.0.1:8000/api/author/?search={search}'
+        )
+
+        return response.json()
+    
+    @classmethod
+    def get_author_info(cls, id: str) -> list[dict]:
+        response = requests.get(
+            f'http://127.0.0.1:8000/api/author/?id={id}'
         )
 
         return response.json()[0]
